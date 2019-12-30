@@ -13,7 +13,8 @@ pipeline {
         }
         stage('Test') { 
             steps {
-              sh 'echo Hola2'
+              sh 'gradle test'
+              sh 'gradle jacocoTestReport'
             }
         }
         stage('Deploy') { 
