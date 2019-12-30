@@ -12,6 +12,9 @@ pipeline {
             }
         }
         stage('Test') { 
+            agent {
+                docker { image 'gradle:alpine' }
+            }
             steps {
               sh 'gradle test'
               sh 'gradle jacocoTestReport'
