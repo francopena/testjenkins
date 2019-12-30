@@ -31,7 +31,7 @@ pipeline {
               docker { image 'docker.io/google/cloud-sdk'}
             }
             steps {
-              sh 'docker build -t trybuild:V1.0 .'
+              sh 'sudo docker build -t trybuild:V1.0 .'
             }
         }
         stage('SonnarQube'){
