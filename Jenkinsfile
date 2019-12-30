@@ -26,6 +26,14 @@ pipeline {
                }
             }
         }
+        stage('BuildImage'){
+            agent{
+              docker { image 'docker.io/google/cloud-sdk'}
+            }
+            steps {
+              sh 'docker build -t trybuild:V1.0 .'
+            }
+        }
         stage('SonnarQube'){
             agent{
               docker { image 'zentadevops/sonar-scanner:3.2.0.1227-prd'}
