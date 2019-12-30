@@ -26,6 +26,13 @@ pipeline {
                }
             }
         }
+        stage('SonnarQube')
+            agent{
+              docker { image 'zentadevops/sonar-scanner:3.2.0.1227-prd'}
+            }
+            steps {
+              sh 'sonar-scanner -Dsonar.host.url=$SONARQUBE_HOST -Dsonar.sources=. -Dsonar.java.binaries=. -Dsonar.login=$SONARQUBE_TOKEN  -Dsonar.projectKey=$JOB_NAME:$GIT_BRANCH -Dsonar.projectName=$JOB_NAME:$GIT_BRANCH -Dsonar.coverage.jacoco.xmlReportsPath=build/jacocoReport/jacocoXML/jacoco.xml -Dsonar.jacoco.reportPaths=build/jacoco/test.exec -Dsonar.junit.reportPath=build/test-results/test/** -Dsonar.language=java -Dsonar.java.test.binaries=build/classes/** -Dsonar.jacoco.itReportPath=build/jacoco/test.exec -Dsonar.java.coveragePlugin=jacoco -Dsonar.exclusions=**/*.js,**/*.css,**/*.html,src/test/**,src/main/java/cl/mallplaza/salesforcemanager/dto/**,src/main/java/cl/mallplaza/salesforcemanager/exception/** -Dsonar.coverage.exclusions=src/test/**,src/main/java/cl/mallplaza/salesforcemanager/configuration/**,src/main/java/cl/mallplaza/salesforcemanager/SalesforceManagerUtilApplication**,src/main/java/cl/mallplaza/salesforcemanager/dto/**,src/main/java/cl/mallplaza/salesforcemanager/exception/**,src/main/java/cl/mallplaza/salesforcemanager/util/**'
+            }
         stage('Deploy') { 
             steps {
               sh 'echo cambios raros'
