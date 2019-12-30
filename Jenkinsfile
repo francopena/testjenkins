@@ -19,6 +19,12 @@ pipeline {
               sh 'gradle test'
               sh 'gradle jacocoTestReport'
             }
+            post {
+               always {
+                   archiveArtifacts artifacts: 'build/jacocoReport/jacocoHTML/*', fingerprint: true
+                  //junit 'build//jacocoReport/jacocoXML/jacoco.xml'
+               }
+            }
         }
         stage('Deploy') { 
             steps {
@@ -26,11 +32,5 @@ pipeline {
               sh 'echo Hola3'
             }
         }
-    }
-    post {
-       always {
-           archiveArtifacts artifacts: 'build/jacocoReport/jacocoHTML/*', fingerprint: true
-           //junit 'build//jacocoReport/jacocoXML/jacoco.xml'
-       }
     }
 }
