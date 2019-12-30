@@ -31,7 +31,7 @@ pipeline {
               docker { image 'docker.io/google/cloud-sdk'}
             }
             steps {
-              sh "sudo chown root:jenkins /run/docker.sock"
+              sh "sudo chown root:jenkins /var/run/docker.sock"
               sh 'docker build -t trybuild:V1.0 .'
             }
         }
