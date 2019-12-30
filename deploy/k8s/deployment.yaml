@@ -1,0 +1,41 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: api-notifications-deployment # Nombre del deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-notifications # Match label para agrupar contenedores
+  template:
+    metadata:
+      labels:
+        app: api-notifications # Nombre Pod
+    spec:
+      containers:
+      - name: api-notifications # Nombre del contenedor
+        image: gcr.io/{GOOGLE_PROJECT_ID}/{IMAGE_DOCKER}
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+        env:
+        - name: MANAGER_AUTH_TOKEN
+          value: {MANAGER_AUTH_TOKEN}
+        - name: SALESFORCE_MAIL_URL
+          value: {SALESFORCE_MAIL_URL}
+        - name: SALESFORCE_TOKEN_URL
+          value: {SALESFORCE_TOKEN_URL}
+        - name: SALESFORCE_TOKEN_CLIENT_CREDENTIALS
+          value: {SALESFORCE_TOKEN_CLIENT_CREDENTIALS}
+        - name: SALESFORCE_TOKEN_CLIENT_ID
+          value: {SALESFORCE_TOKEN_CLIENT_ID}
+        - name: SALESFORCE_TOKEN_CLIENT_SECRET
+          value: {SALESFORCE_TOKEN_CLIENT_SECRET}
+        - name: SALESFORCE_TOKEN_SCOPE
+          value: {SALESFORCE_TOKEN_SCOPE}
+        - name: SALESFORCE_TOKEN_ACCOUNT_ID
+          value: {SALESFORCE_TOKEN_ACCOUNT_ID}
+        - name: SALESFORCE_ENCRYT_WORDKEY
+          value: {SALESFORCE_ENCRYT_WORDKEY}
+      imagePullSecrets:
+      - name: gcrsecret # Secrets que contiene la cuenta de servicio para realizar pull de repositorio de Images Mallplaza

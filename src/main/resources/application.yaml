@@ -1,0 +1,37 @@
+#SalesForce-Manager-util Param EV
+server:
+  port: 8080
+
+management:
+  endpoint:
+    health:
+      show-details: "ALWAYS"
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+
+info:
+  app:
+    name: salesforce-manager-util
+    description: manager for salesforce
+    version: 0.0.1
+  
+properties:
+  encript:
+    word-for-key: '${SALESFORCE_ENCRYT_WORDKEY}'
+  authorization:
+    request:
+      token: '${MANAGER_AUTH_TOKEN}'
+  salesforce:
+    mail:
+      send:
+        url: '${SALESFORCE_MAIL_URL}'
+    token:
+      url: '${SALESFORCE_TOKEN_URL}'
+      request:
+        grant-type: '${SALESFORCE_TOKEN_CLIENT_CREDENTIALS}'
+        client-id: '${SALESFORCE_TOKEN_CLIENT_ID}'
+        client-secret: '${SALESFORCE_TOKEN_CLIENT_SECRET}'
+        scope: '${SALESFORCE_TOKEN_SCOPE}'
+        account-id: '${SALESFORCE_TOKEN_ACCOUNT_ID}'

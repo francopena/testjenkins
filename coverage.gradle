@@ -1,0 +1,51 @@
+def jacocoExcludes = [
+	'cl/mallplaza/salesforcemanager/configuration/**',
+	'cl/mallplaza/salesforcemanager/SalesforceManagerUtilApplication**',
+	'cl/mallplaza/salesforcemanager/dto/**',
+	'cl/mallplaza/salesforcemanager/exception/**'
+]
+jacocoTestReport {
+	reports {
+		xml.enabled = true
+		csv.enabled = false
+		html.enabled = true
+		xml.setDestination(file("${buildDir}/jacocoReport/jacocoXML/jacoco.xml"))
+		html.setDestination(file("${buildDir}/jacocoReport/jacocoHTML/"))
+	}
+	afterEvaluate {
+		classDirectories = files(classDirectories.files.collect {
+			fileTree(dir: it, exclude: jacocoExcludes)
+		})
+	}
+}
+jacocoTestCoverageVerification {
+	doFirst {
+		classDirectories = files(classDirectories.files.collect {
+			fileTree(dir: it, exclude: jacocoExcludes)
+		})
+	}
+	
+	afterEvaluate {
+		classDirectories = files(classDirectories.files.collect {
+			fileTree(dir: it, exclude: jacocoExcludes)
+		})
+	}
+	violationRules {
+		rule {
+			enabled = true
+			limit {
+				counter = 'BRANCH'
+				value = 'COVEREDRATIO'
+				minimum = 0.90
+			}
+		}
+		rule {
+			enabled = true
+			limit {
+				counter = 'INSTRUCTION'
+				value = 'COVEREDRATIO'
+				minimum = 0.90
+			}
+		}
+	}
+}

@@ -1,0 +1,402 @@
+# ---------------------------------------------------------------------------------------------------------------------
+# STAGES
+# ---------------------------------------------------------------------------------------------------------------------
+
+stages:
+- build
+- sonarqube
+- quality_gate
+- build_image
+- deploy_gcp
+
+variables:
+  PROD_VERSION: 2.0.0
+  DESA_DOMINIO: api-notifications.dev.notifications.mallplaza.com
+
+# ---------------------------------------------------------------------------------------------------------------------
+# DEFINITION STAGES
+# ---------------------------------------------------------------------------------------------------------------------
+
+BUILD:
+  stage: build
+  image: gradle:alpine
+  script:
+   - build
+   - test_unit
+  artifacts:
+    name: "$CI_COMMIT_SHA"
+    paths:
+    - "./build/*"
+    expire_in: 20 mins
+    
+SONARQUBE:
+  stage: sonarqube
+  image: zentadevops/sonar-scanner:3.2.0.1227-prd
+  cache:
+    key: sonar-cache
+    paths: [ .sonar ]
+  variables:
+    SONAR_USER_HOME: ${CI_PROJECT_DIR}/.sonar
+  script:
+    - vault_token
+    - vault_sonarqube
+    - sonarqube_analysis
+  artifacts:
+    name: "$CI_COMMIT_SHA"
+    paths:
+    - "./build/*"
+    - .scannerwork/report-task.txt
+    expire_in: 20 mins
+
+QUALITY_GATE:
+  stage: quality_gate
+  image: zentadevops/sonar-scanner:3.2.0.1227-prd
+  script:
+    - vault_token
+    - vault_sonarqube
+    - sonarqube_quality_gate
+  artifacts:
+    name: "$CI_COMMIT_SHA"
+    paths:
+    - "./build/*"
+    - .scannerwork/report-task.txt
+    expire_in: 20 mins
+  only:
+    - master
+
+BUILD-IMAGE:
+  stage: build_image
+  image: docker.io/google/cloud-sdk
+  services:
+    - docker:dind
+  variables:
+    DOCKER_DRIVER: overlay2
+    DOCKER_HOST: tcp://localhost:2375
+    DOCKER_TLS_CERTDIR: ""
+  script:
+    - curl_sdk
+    - vault_token
+    - gcp_login_container_registry
+    - build_image
+  artifacts:
+    name: "$CI_COMMIT_SHA"
+    paths:
+    - "./build/*"
+    expire_in: 20 mins
+  only:
+    - develop
+    - master
+
+DEPLOY:
+  stage: deploy_gcp
+  image: docker.io/google/cloud-sdk
+  script:
+    - curl_sdk
+    - vault_token
+    - environment
+    - gcp_login
+    - gcp_secrets
+    - gcp_deploy
+  only:
+    - develop
+
+
+# ---------------------------------------------------------------------------------------------------------------------
+# DEFINITION STAGES DECLARATIVE METHODS SECTION
+# ---------------------------------------------------------------------------------------------------------------------
+
+.script_exec: &script_exec |
+  # Auto DevOps variables and functions
+  [[ "$TRACE" ]] && set -x
+
+    #---------------------------- TASK build --------------------------------------------------------#
+    # COMPILACION DE FUENTES
+  function build(){
+     echo *------------- BUILD ${CI_PROJECT_NAME} rama ${CI_COMMIT_REF_NAME} --------------*
+     gradle build -x test 
+  }
+
+    #---------------------------- TASK unit_tests --------------------------------------------------------#
+    # EJECUCION DE PRUEBAS UNITARIAS
+  function test_unit(){
+     echo *------------- TEST UNIT ${CI_PROJECT_NAME} rama ${CI_COMMIT_REF_NAME} --------------*
+     gradle test 
+     gradle jacocoTestReport  
+  }
+  
+    #---------------------------- TASK sonarqube --------------------------------------------------------#
+    # FUNCION ANALISIS SONARQUBE
+  function sonarqube_analysis() {
+
+    if [ $CI_COMMIT_REF_NAME == 'master' ]; then
+        echo "INFO: Analizando codigo rama master..."
+        echo "INFO: ************************************ "
+        sonar-scanner -Dsonar.host.url=$SONARQUBE_HOST -Dsonar.sources=. -Dsonar.java.binaries=. -Dsonar.login=$SONARQUBE_USER -Dsonar.password=$SONARQUBE_PASSWORD -Dsonar.projectKey=$CI_PROJECT_NAME:$CI_COMMIT_REF_NAME -Dsonar.projectName=$CI_PROJECT_NAME:$CI_COMMIT_REF_NAME -Dsonar.coverage.jacoco.xmlReportsPath=build/jacocoReport/jacocoXML/jacoco.xml -Dsonar.jacoco.reportPaths=build/jacoco/test.exec -Dsonar.junit.reportPath=build/test-results/test/** -Dsonar.language=java -Dsonar.java.test.binaries=build/classes/** -Dsonar.jacoco.itReportPath=build/jacoco/test.exec -Dsonar.java.coveragePlugin=jacoco -Dsonar.exclusions=**/*.js,**/*.css,**/*.html,src/test/**,src/main/java/cl/mallplaza/salesforcemanager/dto/**,src/main/java/cl/mallplaza/salesforcemanager/exception/** -Dsonar.coverage.exclusions=src/test/**,src/main/java/cl/mallplaza/salesforcemanager/configuration/**,src/main/java/cl/mallplaza/salesforcemanager/SalesforceManagerUtilApplication**,src/main/java/cl/mallplaza/salesforcemanager/dto/**,src/main/java/cl/mallplaza/salesforcemanager/exception/**,src/main/java/cl/mallplaza/salesforcemanager/util/**
+        
+    fi
+
+    if [ $CI_COMMIT_REF_NAME == 'develop' ]; then
+        echo "INFO: Analizando codigo rama develop..."
+        echo "INFO: ************************************ "
+        sonar-scanner -Dsonar.host.url=$SONARQUBE_HOST -Dsonar.sources=src -Dsonar.java.binaries=. -Dsonar.login=$SONARQUBE_USER -Dsonar.password=$SONARQUBE_PASSWORD -Dsonar.projectKey=$CI_PROJECT_NAME:$CI_COMMIT_REF_NAME -Dsonar.projectName=$CI_PROJECT_NAME:$CI_COMMIT_REF_NAME -Dsonar.coverage.jacoco.xmlReportsPath=build/jacocoReport/jacocoXML/jacoco.xml -Dsonar.jacoco.reportPaths=build/jacoco/test.exec -Dsonar.junit.reportPath=build/test-results/test/** -Dsonar.language=java -Dsonar.java.test.binaries=build/classes/** -Dsonar.jacoco.itReportPath=build/jacoco/test.exec -Dsonar.java.coveragePlugin=jacoco -Dsonar.exclusions=**/*.js,**/*.css,**/*.html,src/test/**,src/main/java/cl/mallplaza/salesforcemanager/dto/**,src/main/java/cl/mallplaza/salesforcemanager/exception/**  -Dsonar.coverage.exclusions=src/test/**,src/main/java/cl/mallplaza/salesforcemanager/configuration/**,src/main/java/cl/mallplaza/salesforcemanager/SalesforceManagerUtilApplication**,src/main/java/cl/mallplaza/salesforcemanager/dto/**,src/main/java/cl/mallplaza/salesforcemanager/exception/**,src/main/java/cl/mallplaza/salesforcemanager/util/**
+        
+    fi
+
+    if [[ $CI_COMMIT_REF_NAME != 'master'  &&  $CI_COMMIT_REF_NAME != 'develop' ]]; then
+        echo "INFO: Analizando codigo Feature..."
+        echo "INFO: ************************************ "
+        sonar-scanner -Dsonar.host.url=$SONARQUBE_HOST -Dsonar.sources=. -Dsonar.java.binaries=. -Dsonar.login=$SONARQUBE_USER -Dsonar.password=$SONARQUBE_PASSWORD -Dsonar.projectKey=$CI_PROJECT_NAME:features -Dsonar.projectName=$CI_PROJECT_NAME:features -Dsonar.coverage.jacoco.xmlReportsPath=build/jacocoReport/jacocoXML/jacoco.xml -Dsonar.jacoco.reportPaths=build/jacoco/test.exec -Dsonar.junit.reportPath=build/test-results/test/** -Dsonar.language=java -Dsonar.java.test.binaries=build/classes/** -Dsonar.jacoco.itReportPath=build/jacoco/test.exec -Dsonar.java.coveragePlugin=jacoco -Dsonar.exclusions=**/*.js,**/*.css,**/*.html,src/test/**,src/main/java/cl/mallplaza/salesforcemanager/dto/**,src/main/java/cl/mallplaza/salesforcemanager/exception/** -Dsonar.coverage.exclusions=src/test/**,src/main/java/cl/mallplaza/salesforcemanager/configuration/**,src/main/java/cl/mallplaza/salesforcemanager/SalesforceManagerUtilApplication**,src/main/java/cl/mallplaza/salesforcemanager/dto/**,src/main/java/cl/mallplaza/salesforcemanager/exception/**,src/main/java/cl/mallplaza/salesforcemanager/util/**
+        
+    fi
+  }
+
+    # FUNCION QUALITY GATE SONARQUBE
+  function sonarqube_quality_gate() {
+
+          echo "INFO: Preparando Quality Gate ... "
+          sleep 5
+          ce_task_id=$(cat ".scannerwork/report-task.txt" | grep ceTaskId= | cut -d'=' -f2)
+          echo "ID de tarea : ${ce_task_id}"
+          sleep 5
+          echo "INFO: Preparacion terminada. --- "
+          echo "INFO: ************************************ "
+          echo "INFO: Recuperando información revisión de proyecto ..."
+          ce_analysis_id=$(curl -s -u ${SONARQUBE_TOKEN}: $SONARQUBE_HOST/api/ce/task?id=$ce_task_id | jq -r .task.analysisId)
+          echo "Codigo de analisis : ${ce_analysis_id}"
+          sleep 5
+          echo "INFO: ************************************ "
+          echo "INFO: Obteniendo estatus del proyecto"
+          qg_status=$(curl -s -u ${SONARQUBE_TOKEN}: $SONARQUBE_HOST/api/qualitygates/project_status?analysisId="${ce_analysis_id}" | jq -r .projectStatus.status)
+          echo "INFO:  estatus del proyecto ${qg_status}"
+
+          if [ "${qg_status}" != "OK" ]; then
+          echo "QG Script --> Quality gate is not OK - exiting with error"
+          exit 1
+          fi
+          }
+  
+    #---------------------------- TASK build_image --------------------------------------------------------#
+    
+    # GENERACION DE IMAGEN DOCKER
+  function build_image() {
+
+     if [ $CI_COMMIT_REF_NAME == 'master' ]; then
+
+      echo "INFO: IMAGEN DOCKER ${CI_PROJECT_NAME} rama ${CI_COMMIT_REF_NAME}"
+      docker build -t gcr.io/$GOOGLE_PROJECT_ID/${CI_PROJECT_NAME,,}-${CI_COMMIT_REF_NAME}:${PROD_VERSION}-$CI_PIPELINE_ID .
+      echo "INFO: push imagen develop a registry...."
+      docker push gcr.io/$GOOGLE_PROJECT_ID/${CI_PROJECT_NAME,,}-${CI_COMMIT_REF_NAME}:${PROD_VERSION}-$CI_PIPELINE_ID
+
+     fi 
+
+     if [ $CI_COMMIT_REF_NAME == 'develop' ]; then
+
+      echo "INFO: IMAGEN DOCKER ${CI_PROJECT_NAME} rama ${CI_COMMIT_REF_NAME}"
+      docker build -t gcr.io/$GOOGLE_PROJECT_ID/${CI_PROJECT_NAME,,}-${CI_COMMIT_REF_NAME}:$CI_PIPELINE_ID .
+      echo "INFO: push imagen develop a registry...."
+      docker push gcr.io/$GOOGLE_PROJECT_ID/${CI_PROJECT_NAME,,}-${CI_COMMIT_REF_NAME}:$CI_PIPELINE_ID
+
+     fi 
+  }
+  
+    #---------------------------- TASK  deploy_gcp--------------------------------------------------------#
+
+    
+    # DEPLOY GCP K8S 
+  function gcp_deploy(){
+     echo "INFO: Deploy en Cluster ..."
+
+    if [ $CI_COMMIT_REF_NAME == 'develop' ]; then
+
+        echo "INFO: Deploy de rama $CI_COMMIT_REF_NAME ... "
+        
+        sed -i 's/{MANAGER_AUTH_TOKEN}/'${DESA_MANAGER_AUTH_TOKEN}'/g' deploy/k8s/deployment.yaml
+        sed -i 's/{SALESFORCE_TOKEN_CLIENT_CREDENTIALS}/'${DESA_SALESFORCE_TOKEN_CLIENT_CREDENTIALS}'/g' deploy/k8s/deployment.yaml
+        sed -i 's/{SALESFORCE_TOKEN_CLIENT_ID}/'${DESA_SALESFORCE_TOKEN_CLIENT_ID}'/g' deploy/k8s/deployment.yaml
+        sed -i 's/{SALESFORCE_TOKEN_CLIENT_SECRET}/'${DESA_SALESFORCE_TOKEN_CLIENT_SECRET}'/g' deploy/k8s/deployment.yaml
+
+        sed -i 's|{SALESFORCE_MAIL_URL}|'${DESA_SALESFORCE_MAIL_URL}'|g' deploy/k8s/deployment.yaml
+        sed -i 's|{SALESFORCE_TOKEN_URL}|'${DESA_SALESFORCE_TOKEN_URL}'|g' deploy/k8s/deployment.yaml
+        sed -i 's/{SALESFORCE_TOKEN_SCOPE}/'"${DESA_SALESFORCE_TOKEN_SCOPE}"'/g' deploy/k8s/deployment.yaml
+        sed -i 's|{SALESFORCE_TOKEN_ACCOUNT_ID}|'${DESA_SALESFORCE_TOKEN_ACCOUNT_ID}'|g' deploy/k8s/deployment.yaml
+
+        sed -i 's|{SALESFORCE_ENCRYT_WORDKEY}|'${DESA_SALESFORCE_ENCRYT_WORDKEY}'|g' deploy/k8s/deployment.yaml
+        
+        #DOMINIO MICROSERVICIO
+        sed -i 's|{DOMINIO}|'${DESA_DOMINIO}'|g' deploy/k8s/certificate-ssl.yaml
+        sed -i 's|{DOMINIO}|'${DESA_DOMINIO}'|g' deploy/k8s/proxy-ingress.yaml
+
+
+        GOOGLE_PROJECT_ID=$(curl -H "X-Vault-Token: ${VAULT_TOKEN}" -X GET ${VAULT_SERVER}v1/mpl-corp-tadi-cl-dtahubres-kv/data/prd/gcp-services-accounts/container-registry-write | jq ".data.data.project_id")
+        GOOGLE_PROJECT_ID=${GOOGLE_PROJECT_ID//\"/}
+
+        DESA_IMAGE_DOCKER=${CI_PROJECT_NAME,,}-${CI_COMMIT_REF_NAME}:$CI_PIPELINE_ID
+        echo "IMAGEN DOCKER :${DESA_IMAGE_DOCKER}"
+
+        sed -i 's/{IMAGE_DOCKER}/'${DESA_IMAGE_DOCKER}'/g' deploy/k8s/deployment.yaml
+        sed -i 's/{GOOGLE_PROJECT_ID}/'${GOOGLE_PROJECT_ID}'/g' deploy/k8s/deployment.yaml
+
+        echo "INFO: Deploy Microservicio"
+        gcloud container clusters get-credentials  ${DESA_CLUSTER_NAME} --zone ${DESA_ZONA_CLUSTER} --project ${DESA_PROJECT_ID}
+        kubectl --namespace default apply -f ./deploy/k8s/deployment.yaml
+        kubectl --namespace default apply -f ./deploy/k8s/services.yaml
+        kubectl --namespace default apply -f ./deploy/k8s/certificate-ssl.yaml
+        kubectl --namespace default apply -f ./deploy/k8s/proxy-ingress.yaml
+
+    fi
+
+    }
+    
+    # GENERAR SECRETS GCP  
+  function gcp_secrets(){
+
+     if [ $CI_COMMIT_REF_NAME == 'develop' ]; then
+
+            if [ $DESA_STATUS_SECRETS_REGISTRY == '0' ]; then
+                gcloud container clusters get-credentials  ${DESA_CLUSTER_NAME} --zone ${DESA_ZONA_CLUSTER} --project ${DESA_PROJECT_ID}
+                echo "INFO: ************************************ "
+                echo "INFO: Obteniendo Cuenta Servicio para realizar pull"
+                echo "INFO: ************************************ "
+                VAULT_SERVICE_ACCOUNTS=$(curl -H "X-Vault-Token: ${VAULT_TOKEN}" -X GET ${VAULT_SERVER}v1/mpl-corp-tadi-cl-dtahubres-kv/data/prd/gcp-services-accounts/container-registry-read | jq ".data.data")
+                echo $VAULT_SERVICE_ACCOUNTS > ./secrets-google/mallplaza-key.json
+
+                echo "INFO: Obteniendo email de cuenta de servicio "
+                GOOGLE_APPLICATION_ACOUNT=$(curl -H "X-Vault-Token: ${VAULT_TOKEN}" -X GET ${VAULT_SERVER}v1/mpl-corp-tadi-cl-dtahubres-kv/data/prd/gcp-services-accounts/container-registry-read | jq ".data.data.client_email")
+                GOOGLE_APPLICATION_ACOUNT=${GOOGLE_APPLICATION_ACOUNT//\"/}
+                echo $GOOGLE_APPLICATION_ACOUNT
+
+                echo "INFO: *Creando Secrets gcrsecret ... "
+                kubectl --namespace default create secret docker-registry gcrsecret --docker-server=https://gcr.io --docker-username=_json_key --docker-email=$GOOGLE_APPLICATION_ACOUNT --docker-password="$(cat ./secrets-google/mallplaza-key.json)"
+
+            fi 
+    fi
+
+    }
+    
+    #---------------------------- TASK  Funciones Adicionales--------------------------------------------------------#
+    
+    # OBTENER TOKEN DE VAULT
+  function vault_token(){
+     echo "INFO: Obteniendo TOKEN VAULT"
+     VAULT_TOKEN=$(curl -X POST -H "Content-Type: application/json" -d '{"password": "'${VAULT_PASSWORD}'"}' ${VAULT_SERVER}v1/auth/userpass/login/${VAULT_USER} | jq ".auth.client_token")
+     VAULT_TOKEN=${VAULT_TOKEN//\"/}
+    }
+    
+    # VARIABLE DE ENTORNO DE SONARQUBE DE VAULT
+  function vault_sonarqube(){
+
+    SONARQUBE_USER=$(curl -H "X-Vault-Token: ${VAULT_TOKEN}" -X GET ${VAULT_SERVER}v1/mpl-corp-tadi-cl-datalake-kv/data/dev/sonarqube-admin | jq ".data.data.sonarqube_user")
+    SONARQUBE_USER=${SONARQUBE_USER//\"/}
+
+    SONARQUBE_PASSWORD=$(curl -H "X-Vault-Token: ${VAULT_TOKEN}" -X GET ${VAULT_SERVER}v1/mpl-corp-tadi-cl-datalake-kv/data/dev/sonarqube-admin | jq ".data.data.sonarqube_password")
+    SONARQUBE_PASSWORD=${SONARQUBE_PASSWORD//\"/}
+
+    SONARQUBE_HOST=$(curl -H "X-Vault-Token: ${VAULT_TOKEN}" -X GET ${VAULT_SERVER}v1/mpl-corp-tadi-cl-datalake-kv/data/dev/sonarqube-admin | jq ".data.data.sonarqube_server")
+    SONARQUBE_HOST=${SONARQUBE_HOST//\"/}
+
+    SONARQUBE_TOKEN=$(curl -H "X-Vault-Token: ${VAULT_TOKEN}" -X GET ${VAULT_SERVER}v1/mpl-corp-tadi-cl-datalake-kv/data/dev/sonarqube-admin | jq ".data.data.sonarqube_token")
+    SONARQUBE_TOKEN=${SONARQUBE_TOKEN//\"/}
+
+
+
+    }
+    
+    # LOGIN GCP
+  function gcp_login(){
+
+        if [ $CI_COMMIT_REF_NAME == 'develop' ]; then
+        echo "INFO: ************************************ "
+        
+        echo "INFO: Login "
+        echo "INFO: Obteniendo Cuenta Servicio del proyecto GCP"
+        echo "INFO: ************************************ "
+        VAULT_SERVICE_ACCOUNTS=$(curl -H "X-Vault-Token: ${VAULT_TOKEN}" -X GET ${VAULT_SERVER}v1/${VAULT_ENGINE_NAME}/data/dev/shared/gcp-services-accounts/project-owner | jq ".data.data")
+        echo $VAULT_SERVICE_ACCOUNTS > auth.json
+
+        echo "INFO: Obteniendo email de cuenta de servicio "
+        GOOGLE_APPLICATION_ACOUNT=$(curl -H "X-Vault-Token: ${VAULT_TOKEN}" -X GET ${VAULT_SERVER}v1/${VAULT_ENGINE_NAME}/data/dev/shared/gcp-services-accounts/project-owner | jq ".data.data.client_email")
+        GOOGLE_APPLICATION_ACOUNT=${GOOGLE_APPLICATION_ACOUNT//\"/}
+        echo ${GOOGLE_APPLICATION_ACOUNT}
+
+        echo "INFO: Login $DESA_PROJECT_ID" 
+        gcloud config set project "$DESA_PROJECT_ID"
+        gcloud auth activate-service-account $GOOGLE_APPLICATION_ACOUNT --key-file=auth.json --project=$DESA_PROJECT_ID
+
+    fi
+
+
+    }
+    
+    # LOGIN CONTAINER REGISTRY MALLPLAZA
+  function gcp_login_container_registry(){
+        echo "INFO: Login "
+        echo "INFO: Obteniendo Cuenta Servicio para realizar push"
+        echo "INFO: ************************************ "
+        VAULT_SERVICE_ACCOUNTS=$(curl -H "X-Vault-Token: ${VAULT_TOKEN}" -X GET ${VAULT_SERVER}v1/mpl-corp-tadi-cl-dtahubres-kv/data/prd/gcp-services-accounts/container-registry-write | jq ".data.data")
+        echo $VAULT_SERVICE_ACCOUNTS > auth.json
+
+        echo "INFO: Obteniendo ID de Proyecto"
+        GOOGLE_PROJECT_ID=$(curl -H "X-Vault-Token: ${VAULT_TOKEN}" -X GET ${VAULT_SERVER}v1/mpl-corp-tadi-cl-dtahubres-kv/data/prd/gcp-services-accounts/container-registry-write | jq ".data.data.project_id")
+        GOOGLE_PROJECT_ID=${GOOGLE_PROJECT_ID//\"/}
+
+        echo "INFO: Obteniendo email de cuenta de servicio "
+        GOOGLE_APPLICATION_ACOUNT=$(curl -H "X-Vault-Token: ${VAULT_TOKEN}" -X GET ${VAULT_SERVER}v1/mpl-corp-tadi-cl-dtahubres-kv/data/prd/gcp-services-accounts/container-registry-write | jq ".data.data.client_email")
+        GOOGLE_APPLICATION_ACOUNT=${GOOGLE_APPLICATION_ACOUNT//\"/}
+
+        echo "INFO: Login" 
+        gcloud config set project "$GOOGLE_PROJECT_ID"
+        gcloud auth activate-service-account $GOOGLE_APPLICATION_ACOUNT --key-file=auth.json --project=$GOOGLE_PROJECT_ID
+        cat  auth.json | docker login -u _json_key --password-stdin https://gcr.io
+  }
+
+
+    # FUNCIONES ADICIONALES
+  function curl_sdk(){
+
+    apt-get install curl -y
+    apt-get install  jq -y
+
+    }
+
+    # VARIABLE DE ENTORNO DE API PARA PRUEBAS UNITARIAS
+  function environment(){
+
+
+     if [ $CI_COMMIT_REF_NAME == 'develop' ]; then
+
+         echo "****************Definir Variables Entorno de Microservicio $CI_COMMIT_REF_NAME ********************"
+
+    DESA_MANAGER_AUTH_TOKEN=$(curl -H "X-Vault-Token: ${VAULT_TOKEN}" -X GET ${VAULT_SERVER}v1/${VAULT_ENGINE_NAME}/data/dev/shared/microservices/ms-proxy | jq ".data.data.MANAGER_AUTH_TOKEN")
+
+
+    DESA_SALESFORCE_TOKEN_CLIENT_CREDENTIALS=$(curl -H "X-Vault-Token: ${VAULT_TOKEN}" -X GET ${VAULT_SERVER}v1/${VAULT_ENGINE_NAME}/data/dev/shared/microservices/ms-proxy | jq ".data.data.SALESFORCE_TOKEN_CLIENT_CREDENTIALS")
+
+
+    DESA_SALESFORCE_TOKEN_CLIENT_ID=$(curl -H "X-Vault-Token: ${VAULT_TOKEN}" -X GET ${VAULT_SERVER}v1/${VAULT_ENGINE_NAME}/data/dev/shared/microservices/ms-proxy | jq ".data.data.SALESFORCE_TOKEN_CLIENT_ID")
+
+
+    DESA_SALESFORCE_TOKEN_CLIENT_SECRET=$(curl -H "X-Vault-Token: ${VAULT_TOKEN}" -X GET ${VAULT_SERVER}v1/${VAULT_ENGINE_NAME}/data/dev/shared/microservices/ms-proxy | jq ".data.data.SALESFORCE_TOKEN_CLIENT_SECRET")
+
+    
+    DESA_SALESFORCE_MAIL_URL=$(curl -H "X-Vault-Token: ${VAULT_TOKEN}" -X GET ${VAULT_SERVER}v1/${VAULT_ENGINE_NAME}/data/dev/shared/microservices/ms-proxy | jq ".data.data.SALESFORCE_MAIL_URL")
+
+
+    DESA_SALESFORCE_TOKEN_ACCOUNT_ID=$(curl -H "X-Vault-Token: ${VAULT_TOKEN}" -X GET ${VAULT_SERVER}v1/${VAULT_ENGINE_NAME}/data/dev/shared/microservices/ms-proxy | jq ".data.data.SALESFORCE_TOKEN_ACCOUNT_ID")
+
+
+    DESA_SALESFORCE_TOKEN_SCOPE=$(curl -H "X-Vault-Token: ${VAULT_TOKEN}" -X GET ${VAULT_SERVER}v1/${VAULT_ENGINE_NAME}/data/dev/shared/microservices/ms-proxy | jq ".data.data.SALESFORCE_TOKEN_SCOPE")
+
+
+    DESA_SALESFORCE_TOKEN_URL=$(curl -H "X-Vault-Token: ${VAULT_TOKEN}" -X GET ${VAULT_SERVER}v1/${VAULT_ENGINE_NAME}/data/dev/shared/microservices/ms-proxy | jq ".data.data.SALESFORCE_TOKEN_URL")
+
+
+    DESA_SALESFORCE_ENCRYT_WORDKEY=$(curl -H "X-Vault-Token: ${VAULT_TOKEN}" -X GET ${VAULT_SERVER}v1/${VAULT_ENGINE_NAME}/data/dev/shared/microservices/ms-proxy | jq ".data.data.SALESFORCE_ENCRYT_WORDKEY")
+
+
+    fi
+    
+    }
+
+    
+before_script:
+  - *script_exec

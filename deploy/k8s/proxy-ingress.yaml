@@ -1,0 +1,20 @@
+apiVersion: "extensions/v1beta1"
+kind: "Ingress"
+metadata:
+  name: "api-notifications-ingress"
+  annotations:
+    kubernetes.io/ingress.global-static-ip-name: "api-notifications-ip"
+    kubernetes.io/ingress.allow-http: "true"
+    networking.gke.io/managed-certificates: "api-notifications-dev-certificate"
+spec:
+  backend:
+    serviceName: "api-notifications-service"
+    servicePort: 80
+  rules:
+  - http:
+      paths:
+      - path: "/notification/mail"
+        backend:
+          serviceName: "api-notifications-service"
+          servicePort: 80
+    host: "{DOMINIO}"
