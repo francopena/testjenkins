@@ -27,4 +27,10 @@ pipeline {
             }
         }
     }
+    post {
+       always {
+           archiveArtifacts artifacts: 'build/jacocoReport/jacocoHTML/*', fingerprint: true
+           //junit 'build//jacocoReport/jacocoXML/jacoco.xml'
+       }
+    }
 }
