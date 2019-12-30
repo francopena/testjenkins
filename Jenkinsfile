@@ -7,17 +7,18 @@ pipeline {
             }
             steps {
               sh 'echo Hola1'
+              sh 'echo Nuevos Cambios'
             }
         }
-        // stage('Test') { 
-        //     steps {
-        //       sh 'Hola2'
-        //     }
-        // }
-        // stage('Deploy') { 
-        //     steps {
-        //       sh 'Hola3'
-        //     }
-        // }
+        stage('Test') { 
+            steps {
+              sh 'echo Hola2'
+            }
+        }
+        stage('Deploy') { 
+            steps {
+              sh 'echo Hola3'
+            }
+        }
     }
 }
