@@ -17,7 +17,7 @@ pipeline {
         }
         stage('Deploy') { 
             steps {
-              sh 'echo jaja'
+              sh 'echo cambios raros'
               sh 'echo Hola3'
             }
         }
