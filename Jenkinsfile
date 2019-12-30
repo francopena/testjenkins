@@ -6,7 +6,7 @@ pipeline {
                 docker { image 'zentadevops/sonar-scanner:3.2.0.1227-prd' }
             }
             steps {
-              sh 'Hola1'
+              sh 'echo Hola1'
             }
         }
         // stage('Test') { 
