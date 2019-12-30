@@ -28,10 +28,15 @@ pipeline {
         }
         stage('BuildImage'){
             agent{
-              docker { image 'docker.io/google/cloud-sdk'}
+              docker { 
+                  image 'docker.io/google/cloud-sdk'
+                  args '-v /var/run/docker.sock:/var/run/docker.sock' +
+                     '--user=root' +
+                     '--cap-drop=ALL' +
+                     '--cap-add=DAC_OVERRIDE'
+                     }
             }
             steps {
-              sh "sudo chown root:jenkins /var/run/docker.sock"
               sh 'docker build -t trybuild:V1.0 .'
             }
         }
