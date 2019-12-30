@@ -31,7 +31,7 @@ pipeline {
               docker { image 'docker.io/google/cloud-sdk' }
             }
             steps {
-               app = docker.build("intentodocker")
+               sh 'app = docker.build("intentodocker")'
             }
         }
         stage('SonnarQube'){
