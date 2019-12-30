@@ -28,16 +28,10 @@ pipeline {
         }
         stage('BuildImage'){
             agent{
-              docker { 
-                  image 'docker.io/google/cloud-sdk'
-                  args '-v /var/run/docker.sock:/var/run/docker.sock' +
-                     '--user=root' +
-                     '--cap-drop=ALL' +
-                     '--cap-add=DAC_OVERRIDE'
-                     }
+              docker { image 'docker.io/google/cloud-sdk' }
             }
             steps {
-              sh 'docker build -t trybuild:V1.0 .'
+               app = docker.build("intentodocker")
             }
         }
         stage('SonnarQube'){
