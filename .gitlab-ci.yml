@@ -319,8 +319,8 @@ DEPLOY:
         echo ${GOOGLE_APPLICATION_ACOUNT}
 
         echo "INFO: Login $DESA_PROJECT_ID" 
-        gcloud config set project "$DESA_PROJECT_ID"
-        gcloud auth activate-service-account $GOOGLE_APPLICATION_ACOUNT --key-file=auth.json --project=$DESA_PROJECT_ID
+        gcloud config set project "proyecto-capasitacion"
+        gcloud auth activate-service-account terraform-capacitaciones@proyecto-capasitacion.iam.gserviceaccount.com --key-file=auth.json --project=proyecto-capasitacion
 
     fi
 

@@ -20,22 +20,22 @@ spec:
         - containerPort: 80
         env:
         - name: MANAGER_AUTH_TOKEN
-          value: {MANAGER_AUTH_TOKEN}
+          value: "1"
         - name: SALESFORCE_MAIL_URL
-          value: {SALESFORCE_MAIL_URL}
+          value: "2"
         - name: SALESFORCE_TOKEN_URL
-          value: {SALESFORCE_TOKEN_URL}
+          value: "3"
         - name: SALESFORCE_TOKEN_CLIENT_CREDENTIALS
-          value: {SALESFORCE_TOKEN_CLIENT_CREDENTIALS}
+          value: "4"
         - name: SALESFORCE_TOKEN_CLIENT_ID
-          value: {SALESFORCE_TOKEN_CLIENT_ID}
+          value: "5"
         - name: SALESFORCE_TOKEN_CLIENT_SECRET
-          value: {SALESFORCE_TOKEN_CLIENT_SECRET}
+          value: "6"
         - name: SALESFORCE_TOKEN_SCOPE
-          value: {SALESFORCE_TOKEN_SCOPE}
+          value: "7"
         - name: SALESFORCE_TOKEN_ACCOUNT_ID
-          value: {SALESFORCE_TOKEN_ACCOUNT_ID}
+          value: "8"
         - name: SALESFORCE_ENCRYT_WORDKEY
-          value: {SALESFORCE_ENCRYT_WORDKEY}
+          value: "9"
       imagePullSecrets:
       - name: gcrsecret # Secrets que contiene la cuenta de servicio para realizar pull de repositorio de Images Mallplaza
