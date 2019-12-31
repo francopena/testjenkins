@@ -32,7 +32,7 @@ pipeline {
               docker { image 'docker.io/google/cloud-sdk' }
             }
             steps {
-               sh 
+               sh 'echo hola123'
             }
         }
         stage('SonnarQube'){
