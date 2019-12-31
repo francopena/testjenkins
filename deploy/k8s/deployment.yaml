@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: api-notifications # Nombre del contenedor
-        image: gcr.io/{GOOGLE_PROJECT_ID}/{IMAGE_DOCKER}
+        image: nginx:latest 
         imagePullPolicy: Always
         ports:
         - containerPort: 80
