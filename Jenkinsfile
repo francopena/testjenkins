@@ -9,6 +9,13 @@ pipeline {
               sh 'gradle build -x test'
               sh 'echo Hola1'
               sh 'echo Nuevos Cambios'
+              
+            }
+            post {
+               always {
+                   archiveArtifacts artifacts: 'build/libs/*.jar', fingerprint: true
+                  //junit 'build//jacocoReport/jacocoXML/jacoco.xml'
+               }
             }
         }
         stage('Test') { 
@@ -19,19 +26,13 @@ pipeline {
               sh 'gradle test'
               sh 'gradle jacocoTestReport'
             }
-            post {
-               always {
-                   archiveArtifacts artifacts: 'build/jacocoReport/jacocoHTML/*', fingerprint: true
-                  //junit 'build//jacocoReport/jacocoXML/jacoco.xml'
-               }
-            }
         }
         stage('BuildImage'){
             agent{
               docker { image 'docker.io/google/cloud-sdk' }
             }
             steps {
-               sh 'app = docker.build("intentodocker")'
+               sh 
             }
         }
         stage('SonnarQube'){
